@@ -1,0 +1,23 @@
+{
+    "name": "eugene/slim-tasks-api",
+    "description": "Rest API for task management on Slim framework",
+    "type": "project",
+    "require": {
+        "php": "^8.3",
+        "slim/slim": "^4.12",
+        "slim/psr7": "^1.6",
+        "psr/http-message": "^1.1"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Eugene\\SlimTasksApi\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Eugene"
+        }
+    ],
+    "minimum-stability": "stable"
+}
