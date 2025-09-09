@@ -8,10 +8,20 @@
         "slim/psr7": "^1.6",
         "psr/http-message": "^1.1"
     },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "slim/http": "^1.2",
+        "slim/psr7": "^1.6"
+    },
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Eugene\\SlimTasksApi\\": "src/"
+            "SlimTasksApi\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
         }
     },
     "authors": [
@@ -19,5 +29,9 @@
             "name": "Eugene"
         }
     ],
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "scripts": {
+        "test": "phpunit tests",
+        "test-coverage": "phpunit --coverage-html coverage"
+    }
 }

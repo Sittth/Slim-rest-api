@@ -48,14 +48,14 @@ class Database {
     }
 
     public function insert($data) {
-        $sql = "INSERT INTO tasks (title, description, status) VALUES (:title, :description, :status)";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            'title' => $data['title'],
-            'description' => $data['description'] ?? null,
-            'status' => $data['status'] ?? 'pending'
-        ]);
-        return $this->pdo->lastInsertId();
+    $sql = "INSERT INTO tasks (title, description, status) VALUES (:title, :description, :status)";
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute([
+        'title' => $data['title'],
+        'description' => $data['description'] ?? null,
+        'status' => $data['status'] ?? 'pending'
+    ]);
+    return (int)$this->pdo->lastInsertId();
     }
 
     public function update($id, $data) {
