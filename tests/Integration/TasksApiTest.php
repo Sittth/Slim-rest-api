@@ -11,6 +11,7 @@ use Slim\Psr7\Factory\StreamFactory;
 class TasksApiTest extends TestCase {
     private $app;
     private $pdo;
+     private $container;
 
     protected function setUp(): void {
         $this->pdo = new PDO('sqlite::memory:');
@@ -24,13 +25,47 @@ class TasksApiTest extends TestCase {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
 
-        $database = new Database();
-        $reflection = new \ReflectionClass($database);
-        $property = $reflection->getProperty('pdo');
-        $property->setAccessible(true);
-        $property->setValue($database, $this->pdo);
+        $this->container = new class($this->pdo) implements \Psr\Container\ContainerInterface {
+            private $services = [];
+            private $pdo;
 
-        $app = AppFactory::create();
+            public function __construct(PDO $pdo) {
+                $this->pdo = $pdo;
+            }
+
+            public function set(string $id, $value): void {
+                $this->services[$id] = $value;
+            }
+
+            public function get(string $id) {
+                if (!isset($this->services[$id])) {
+                    throw new \RuntimeException("Service $id not found");
+                }
+                if (is_callable($this->services[$id])) {
+                    return $this->services[$id]($this);
+                }
+                return $this->services[$id];
+            }
+
+            public function has(string $id): bool {
+                return isset($this->services[$id]);
+            }
+
+            public function getPdo(): PDO {
+                return $this->pdo;
+            }
+        };
+
+        $this->container->set(Database::class, function($container) {
+            $database = new Database();
+            $reflection = new \ReflectionClass($database);
+            $property = $reflection->getProperty('pdo');
+            $property->setAccessible(true);
+            $property->setValue($database, $container->getPdo());
+            return $database;
+        });
+
+        $app = AppFactory::createFromContainer($this->container);
         $app->addBodyParsingMiddleware();
 
         $app->add(function ($request, $handler) {
@@ -56,13 +91,15 @@ class TasksApiTest extends TestCase {
             return $response->withHeader('Content-Type', 'application/json');
         });
 
-        $app->get('/tasks', function ($request, $response) use ($database) {
+        $app->get('/tasks', function ($request, $response) use ($app) {
+            $database = $app->getContainer()->get(Database::class);
             $tasks = $database->fetchAll();
             $response->getBody()->write(json_encode($tasks));
             return $response->withHeader('Content-Type', 'application/json');
         });
 
-        $app->get('/tasks/{id}', function ($request, $response, $args) use ($database) {
+        $app->get('/tasks/{id}', function ($request, $response, $args) use ($app) {
+            $database = $app->getContainer()->get(Database::class);
             $task = $database->fetchById($args['id']);
             
             if (!$task) {
@@ -74,7 +111,8 @@ class TasksApiTest extends TestCase {
             return $response->withHeader('Content-Type', 'application/json');
         });
 
-        $app->post('/tasks', function ($request, $response) use ($database) {
+        $app->post('/tasks', function ($request, $response) use ($app) {
+            $database = $app->getContainer()->get(Database::class);
             $data = $request->getParsedBody();
             
             if (empty($data['title'])) {
@@ -87,7 +125,8 @@ class TasksApiTest extends TestCase {
             return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
         });
 
-        $app->put('/tasks/{id}', function ($request, $response, $args) use ($database) {
+        $app->put('/tasks/{id}', function ($request, $response, $args) use ($app) {
+            $database = $app->getContainer()->get(Database::class);
             $data = $request->getParsedBody();
             
             $existingTask = $database->fetchById($args['id']);
@@ -106,8 +145,8 @@ class TasksApiTest extends TestCase {
             }
         });
 
-        $app->delete('/tasks/{id}', function ($request, $response, $args) use ($database) {
-            // Check if task exists
+        $app->delete('/tasks/{id}', function ($request, $response, $args) use ($app) {
+            $database = $app->getContainer()->get(Database::class);
             $existingTask = $database->fetchById($args['id']);
             if (!$existingTask) {
                 $response->getBody()->write(json_encode(['error' => 'Task not found']));

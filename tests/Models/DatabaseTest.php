@@ -30,7 +30,6 @@ class DatabaseTest extends TestCase {
     }
 
     public function testFetchAll() {
-        // Вставляем тестовые данные
         $this->pdo->exec("INSERT INTO tasks (title, description) VALUES ('Test', 'Description')");
         
         $result = $this->db->fetchAll();
