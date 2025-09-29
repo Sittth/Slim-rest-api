@@ -6,9 +6,33 @@ use SlimTasksApi\Models\Database;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$database = new Database();
+$container = new class() implements \Psr\Container\ContainerInterface {
+    private $services = [];
 
-$app = AppFactory::create();
+    public function set(string $id, $value): void {
+        $this->services[$id] = $value;
+    }
+
+    public function get(string $id) {
+        if (!isset($this->services[$id])) {
+            throw new RuntimeException("Service $id not found");
+        }
+        if (is_callable($this->services[$id])) {
+            return $this->services[$id]();
+        }
+        return $this->services[$id];
+    }
+
+    public function has(string $id): bool {
+        return isset($this->services[$id]);
+    }
+};
+
+$container->set(Database::class, function() {
+    return new Database();
+});
+
+$app = AppFactory::createFromContainer($container);
 $app->addBodyParsingMiddleware();
 
 $app->add(function ($request, $handler) {
@@ -19,7 +43,7 @@ $app->add(function ($request, $handler) {
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
 });
 
-$app->get('/', function (Request $request, Response $response) {
+$app->get('/', function (Request $request, Response $response) use ($container) {
     $response->getBody()->write(json_encode([
         'message' => 'Welcome to Slim Tasks API',
         'version' => '1.0',
@@ -34,13 +58,15 @@ $app->get('/', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/tasks', function (Request $request, Response $response) use ($database) {
+$app->get('/tasks', function (Request $request, Response $response) use ($container) {
+    $database = $container->get(Database::class);
     $tasks = $database->fetchAll();
     $response->getBody()->write(json_encode($tasks));
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/tasks/{id}', function (Request $request, Response $response, $args) use ($database) {
+$app->get('/tasks/{id}', function (Request $request, Response $response, $args) use ($container) {
+    $database = $container->get(Database::class);
     $task = $database->fetchById($args['id']);
     
     if (!$task) {
@@ -52,7 +78,8 @@ $app->get('/tasks/{id}', function (Request $request, Response $response, $args) 
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->post('/tasks', function (Request $request, Response $response) use ($database) {
+$app->post('/tasks', function (Request $request, Response $response) use ($container) {
+    $database = $container->get(Database::class);
     $data = $request->getParsedBody();
     
     if (empty($data['title'])) {
@@ -65,10 +92,10 @@ $app->post('/tasks', function (Request $request, Response $response) use ($datab
     return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
 });
 
-$app->put('/tasks/{id}', function (Request $request, Response $response, $args) use ($database) {
+$app->put('/tasks/{id}', function (Request $request, Response $response, $args) use ($container) {
+    $database = $container->get(Database::class);
     $data = $request->getParsedBody();
     
-    // Check if task exists
     $existingTask = $database->fetchById($args['id']);
     if (!$existingTask) {
         $response->getBody()->write(json_encode(['error' => 'Task not found']));
@@ -85,8 +112,8 @@ $app->put('/tasks/{id}', function (Request $request, Response $response, $args) 
     }
 });
 
-$app->delete('/tasks/{id}', function (Request $request, Response $response, $args) use ($database) {
-    // Check if task exists
+$app->delete('/tasks/{id}', function (Request $request, Response $response, $args) use ($container) {
+    $database = $container->get(Database::class);
     $existingTask = $database->fetchById($args['id']);
     if (!$existingTask) {
         $response->getBody()->write(json_encode(['error' => 'Task not found']));
