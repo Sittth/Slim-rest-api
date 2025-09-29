@@ -11,7 +11,7 @@ use Slim\Psr7\Factory\StreamFactory;
 class TasksApiTest extends TestCase {
     private $app;
     private $pdo;
-     private $container;
+    private $container;
 
     protected function setUp(): void {
         $this->pdo = new PDO('sqlite::memory:');
@@ -57,12 +57,7 @@ class TasksApiTest extends TestCase {
         };
 
         $this->container->set(Database::class, function($container) {
-            $database = new Database();
-            $reflection = new \ReflectionClass($database);
-            $property = $reflection->getProperty('pdo');
-            $property->setAccessible(true);
-            $property->setValue($database, $container->getPdo());
-            return $database;
+            return new Database($container->getPdo());
         });
 
         $app = AppFactory::createFromContainer($this->container);

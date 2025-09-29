@@ -22,11 +22,7 @@ class DatabaseTest extends TestCase {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
 
-        $this->db = new Database();
-        $reflection = new \ReflectionClass($this->db);
-        $property = $reflection->getProperty('pdo');
-        $property->setAccessible(true);
-        $property->setValue($this->db, $this->pdo);
+        $this->db = new Database($this->pdo);
     }
 
     public function testFetchAll() {
@@ -47,7 +43,7 @@ class DatabaseTest extends TestCase {
 
     public function testFetchByIdNotFound() {
         $result = $this->db->fetchById(999);
-        $this->assertFalse($result);
+        $this->assertNull($result);
     }
 
     public function testInsert() {

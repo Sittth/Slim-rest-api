@@ -29,7 +29,8 @@ $container = new class() implements \Psr\Container\ContainerInterface {
 };
 
 $container->set(Database::class, function() {
-    return new Database();
+    $databasePath = __DIR__ . '/../database/database.sqlite';
+    return Database::createWithSqlite($databasePath);
 });
 
 $app = AppFactory::createFromContainer($container);
