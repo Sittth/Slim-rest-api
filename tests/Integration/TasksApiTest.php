@@ -88,8 +88,20 @@ class TasksApiTest extends TestCase {
 
         $app->get('/tasks', function ($request, $response) use ($app) {
             $database = $app->getContainer()->get(Database::class);
-            $tasks = $database->fetchAll();
-            $response->getBody()->write(json_encode($tasks));
+            $queryParams = $request->getQueryParams();
+            
+            $page = max(1, (int)($queryParams['page'] ?? 1));
+            $perPage = max(1, min(50, (int)($queryParams['per_page'] ?? 10)));
+            
+            $tasks = $database->fetchPaginated($page, $perPage);
+            $pagination = $database->getPaginationInfo($page, $perPage);
+            
+            $result = [
+                'tasks' => $tasks,
+                'pagination' => $pagination
+            ];
+            
+            $response->getBody()->write(json_encode($result));
             return $response->withHeader('Content-Type', 'application/json');
         });
 
@@ -170,9 +182,20 @@ class TasksApiTest extends TestCase {
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertJson((string)$response->getBody());
         
-        $tasks = json_decode((string)$response->getBody(), true);
+        $data = json_decode((string)$response->getBody(), true);
+        
+        $this->assertArrayHasKey('tasks', $data);
+        $this->assertArrayHasKey('pagination', $data);
+        
+        $tasks = $data['tasks'];
+        $pagination = $data['pagination'];
+        
         $this->assertCount(1, $tasks);
         $this->assertEquals('Test', $tasks[0]['title']);
+        
+        $this->assertEquals(1, $pagination['current_page']);
+        $this->assertEquals(10, $pagination['per_page']);
+        $this->assertEquals(1, $pagination['total']);
     }
 
     public function testCreateTask() {
@@ -243,5 +266,30 @@ class TasksApiTest extends TestCase {
 
         $this->assertEquals(400, $response->getStatusCode());
         $this->assertJson((string)$response->getBody());
+    }
+
+    public function testGetTasksWithPagination() {
+        for ($i = 1; $i <= 15; $i++) {
+            $createdAt = date('Y-m-d H:i:s', time() + $i);
+            $this->pdo->exec("INSERT INTO tasks (title, description, created_at) VALUES ('Task $i', 'Description $i', '$createdAt')");
+        }
+
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/tasks?page=1&per_page=5');
+        $response = $this->app->handle($request);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $data = json_decode((string)$response->getBody(), true);
+        
+        $this->assertArrayHasKey('tasks', $data);
+        $this->assertArrayHasKey('pagination', $data);
+        $this->assertCount(5, $data['tasks']);
+        $this->assertEquals(1, $data['pagination']['current_page']);
+        $this->assertEquals(5, $data['pagination']['per_page']);
+        $this->assertEquals(15, $data['pagination']['total']);
+        $this->assertEquals(3, $data['pagination']['total_pages']);
+        $this->assertTrue($data['pagination']['has_next']);
+        $this->assertFalse($data['pagination']['has_prev']);
+        
+        $this->assertEquals('Task 15', $data['tasks'][0]['title']);
     }
 }

@@ -84,4 +84,42 @@ class DatabaseTest extends TestCase {
         $task = $this->pdo->query("SELECT * FROM tasks WHERE id = $id")->fetch();
         $this->assertFalse($task);
     }
+
+    public function testFetchPaginated() {
+        for ($i = 1; $i <= 15; $i++) {
+            $createdAt = date('Y-m-d H:i:s', time() + $i);
+            $this->pdo->exec("INSERT INTO tasks (title, description, created_at) VALUES ('Task $i', 'Description $i', '$createdAt')");
+        }
+        
+        $result = $this->db->fetchPaginated(1, 10);
+        $this->assertCount(10, $result);
+        $this->assertEquals('Task 15', $result[0]['title']); 
+        
+        $result = $this->db->fetchPaginated(2, 10);
+        $this->assertCount(5, $result);
+        $this->assertEquals('Task 5', $result[0]['title']);
+    }
+
+    public function testGetTotalCount() {
+        $this->pdo->exec("INSERT INTO tasks (title, description) VALUES ('Test 1', 'Desc 1')");
+        $this->pdo->exec("INSERT INTO tasks (title, description) VALUES ('Test 2', 'Desc 2')");
+        
+        $count = $this->db->getTotalCount();
+        $this->assertEquals(2, $count);
+    }
+
+    public function testGetPaginationInfo() {
+        for ($i = 1; $i <= 25; $i++) {
+            $this->pdo->exec("INSERT INTO tasks (title) VALUES ('Task $i')");
+        }
+        
+        $pagination = $this->db->getPaginationInfo(2, 10);
+        
+        $this->assertEquals(2, $pagination['current_page']);
+        $this->assertEquals(10, $pagination['per_page']);
+        $this->assertEquals(25, $pagination['total']);
+        $this->assertEquals(3, $pagination['total_pages']);
+        $this->assertTrue($pagination['has_next']);
+        $this->assertTrue($pagination['has_prev']);
+    }
 }

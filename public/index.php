@@ -61,8 +61,20 @@ $app->get('/', function (Request $request, Response $response) use ($container) 
 
 $app->get('/tasks', function (Request $request, Response $response) use ($container) {
     $database = $container->get(Database::class);
-    $tasks = $database->fetchAll();
-    $response->getBody()->write(json_encode($tasks));
+    $queryParams = $request->getQueryParams();
+    
+    $page = max(1, (int)($queryParams['page'] ?? 1));
+    $perPage = max(1, min(50, (int)($queryParams['per_page'] ?? 10)));
+    
+    $tasks = $database->fetchPaginated($page, $perPage);
+    $pagination = $database->getPaginationInfo($page, $perPage);
+    
+    $result = [
+        'tasks' => $tasks,
+        'pagination' => $pagination
+    ];
+    
+    $response->getBody()->write(json_encode($result));
     return $response->withHeader('Content-Type', 'application/json');
 });
 
