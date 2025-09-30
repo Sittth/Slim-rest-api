@@ -33,6 +33,11 @@ $container->set(Database::class, function() {
     return Database::createWithSqlite($databasePath);
 });
 
+$container->set(\SlimTasksApi\Services\Paginator::class, function() use ($container) {
+    $pdo = $container->get(Database::class)->getPdo();
+    return new \SlimTasksApi\Services\Paginator($pdo, 'tasks');
+});
+
 $app = AppFactory::createFromContainer($container);
 $app->addBodyParsingMiddleware();
 
@@ -60,7 +65,7 @@ $app->get('/', function (Request $request, Response $response) use ($container) 
 });
 
 $app->get('/tasks', function (Request $request, Response $response) use ($container) {
-    $database = $container->get(Database::class);
+    $paginator = $container->get(\SlimTasksApi\Services\Paginator::class);
     $queryParams = $request->getQueryParams();
     
     $page = max(1, (int)($queryParams['page'] ?? 1));
@@ -68,6 +73,14 @@ $app->get('/tasks', function (Request $request, Response $response) use ($contai
     
     $tasks = $database->fetchPaginated($page, $perPage);
     $pagination = $database->getPaginationInfo($page, $perPage);
+
+    $filters = [
+        'status' => $queryParams['status'] ?? null,
+        'search' => $queryParams['search'] ?? null
+    ];
+
+    $tasks = $paginator->paginate($page, $perPage, 'created_at DESC', $filters);
+    $pagination = $paginator->getPaginationInfo($page, $perPage, $filters);
     
     $result = [
         'tasks' => $tasks,

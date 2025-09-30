@@ -14,6 +14,10 @@ class Database {
         $this->createTable();
     }
 
+    public function getPdo(): PDO {
+        return $this->pdo;
+    }
+
     public static function createWithSqlite(string $databasePath): self {
         $dir = dirname($databasePath);
         
@@ -78,37 +82,5 @@ class Database {
     public function delete(int $id): bool {
         $stmt = $this->pdo->prepare("DELETE FROM tasks WHERE id = :id");
         return $stmt->execute(['id' => $id]);
-    }
-
-    public function fetchPaginated(int $page = 1, int $perPage = 10): array {
-        $offset = ($page - 1) * $perPage;
-        
-        $stmt = $this->pdo->prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
-
-        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-        
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    public function getTotalCount(): int {
-        $stmt = $this->pdo->query("SELECT COUNT(*) as count FROM tasks");
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return (int)($result['count'] ?? 0);
-    }
-
-    public function getPaginationInfo(int $page = 1, int $perPage = 10): array {
-        $total = $this->getTotalCount();
-        $totalPages = ceil($total / $perPage);
-        
-        return [
-            'current_page' => $page,
-            'per_page' => $perPage,
-            'total' => $total,
-            'total_pages' => $totalPages,
-            'has_next' => $page < $totalPages,
-            'has_prev' => $page > 1
-        ];
     }
 }

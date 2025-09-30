@@ -4,6 +4,7 @@ namespace Tests\Integration;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use SlimTasksApi\Models\Database;
+use SlimTasksApi\Services\Paginator;
 use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Factory\StreamFactory;
@@ -60,6 +61,10 @@ class TasksApiTest extends TestCase {
             return new Database($container->getPdo());
         });
 
+        $this->container->set(Paginator::class, function($container) {
+            return new Paginator($container->getPdo(), 'tasks');
+        });
+
         $app = AppFactory::createFromContainer($this->container);
         $app->addBodyParsingMiddleware();
 
@@ -87,14 +92,19 @@ class TasksApiTest extends TestCase {
         });
 
         $app->get('/tasks', function ($request, $response) use ($app) {
-            $database = $app->getContainer()->get(Database::class);
+            $paginator = $app->getContainer()->get(Paginator::class);
             $queryParams = $request->getQueryParams();
             
             $page = max(1, (int)($queryParams['page'] ?? 1));
             $perPage = max(1, min(50, (int)($queryParams['per_page'] ?? 10)));
             
-            $tasks = $database->fetchPaginated($page, $perPage);
-            $pagination = $database->getPaginationInfo($page, $perPage);
+            $filters = [
+                'status' => $queryParams['status'] ?? null,
+                'search' => $queryParams['search'] ?? null
+            ];
+            
+            $tasks = $paginator->paginate($page, $perPage, 'created_at DESC', $filters);
+            $pagination = $paginator->getPaginationInfo($page, $perPage, $filters);
             
             $result = [
                 'tasks' => $tasks,
@@ -291,5 +301,26 @@ class TasksApiTest extends TestCase {
         $this->assertFalse($data['pagination']['has_prev']);
         
         $this->assertEquals('Task 15', $data['tasks'][0]['title']);
+    }
+
+    public function testGetTasksWithFilters() {
+        $this->pdo->exec("INSERT INTO tasks (title, status) VALUES ('Pending Task', 'pending')");
+        $this->pdo->exec("INSERT INTO tasks (title, status) VALUES ('Completed Task', 'completed')");
+        $this->pdo->exec("INSERT INTO tasks (title, status) VALUES ('Another Pending', 'pending')");
+
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/tasks?status=pending');
+        $response = $this->app->handle($request);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $data = json_decode((string)$response->getBody(), true);
+        
+        $this->assertCount(2, $data['tasks']);
+        $this->assertEquals(2, $data['pagination']['total']);
+
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/tasks?search=Pending');
+        $response = $this->app->handle($request);
+
+        $data = json_decode((string)$response->getBody(), true);
+        $this->assertCount(2, $data['tasks']);
     }
 }
