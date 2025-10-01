@@ -43,10 +43,22 @@ $app->addBodyParsingMiddleware();
 
 $app->add(function ($request, $handler) {
     $response = $handler->handle($request);
+    
+    $origin = $request->getHeaderLine('Origin');
+    $allowedOrigins = ['http://localhost:3000', 'http://localhost:5173'];
+    
+    if (in_array($origin, $allowedOrigins)) {
+        $response = $response->withHeader('Access-Control-Allow-Origin', $origin);
+    }
+    
     return $response
-        ->withHeader('Access-Control-Allow-Origin', '*')
         ->withHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Origin, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+        ->withHeader('Access-Control-Allow-Credentials', 'true');
+});
+
+$app->options('/{routes:.+}', function ($request, $response) {
+    return $response;
 });
 
 $app->get('/', function (Request $request, Response $response) use ($container) {
@@ -71,9 +83,6 @@ $app->get('/tasks', function (Request $request, Response $response) use ($contai
     $page = max(1, (int)($queryParams['page'] ?? 1));
     $perPage = max(1, min(50, (int)($queryParams['per_page'] ?? 10)));
     
-    $tasks = $database->fetchPaginated($page, $perPage);
-    $pagination = $database->getPaginationInfo($page, $perPage);
-
     $filters = [
         'status' => $queryParams['status'] ?? null,
         'search' => $queryParams['search'] ?? null
